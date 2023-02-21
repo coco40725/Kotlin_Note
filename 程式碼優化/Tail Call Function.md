@@ -37,7 +37,9 @@ fun1 呼叫 fun2， 而 fun2 呼叫 fun3。
                              [fun1] remove
 ```
 因此較不會有 stack 過度堆疊的問題
+
 圖片可參考:
+
 <img src="https://i.imgur.com/ybO5suT.jpg">
 
 #### reference
