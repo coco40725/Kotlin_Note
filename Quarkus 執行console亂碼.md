@@ -13,7 +13,7 @@ class PersonResource{
     @Path("people")
     fun getAllPeople() : String {
         val p = Person("大華")
-        println(p.name) // p 會變成亂碼，而非顯示大華
+        println(p.name) // p.name 會變成亂碼，而非顯示大華
     }
 }
 ```
