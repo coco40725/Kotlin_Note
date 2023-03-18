@@ -18,7 +18,7 @@ quarkus.http.cors.methods=GET,PUT,PATCH,POST,DELETE
 ### 2. Dependency
 
 ### 3. MondoDB CRUD 基本架構
-#### 3.1 Entity
+#### 3.1 Entity (第一種寫法)
 ```kotlin
 import com.edu.utils.ObjectIdDeserializer
 import com.edu.utils.ObjectIdSerializer
@@ -51,7 +51,48 @@ class School (
     }
 }
 ```
-#### 3.2 Repository 
+#### 3.1 Entity (第二種寫法)
+```kotlin
+package com.edu.entities
+
+import com.edu.utils.ObjectIdSerializer
+import com.fasterxml.jackson.annotation.JsonProperty
+import com.fasterxml.jackson.databind.annotation.JsonSerialize
+import org.bson.types.ObjectId
+import java.time.LocalDateTime
+
+/**
+@author Yu-Jing
+@create 2023-03-09-上午 11:14
+ */
+data class Student(
+    @JsonProperty("_id")
+    @JsonSerialize(using = ObjectIdSerializer::class)
+    var id : ObjectId? = null,
+
+    @JsonProperty("age")
+    var age : Int? = null,
+
+    @JsonProperty("name")
+    var name : String? = null,
+
+    @JsonProperty("school_id")
+    @JsonSerialize(using = ObjectIdSerializer::class)
+    var schoolId : ObjectId? = null,
+
+    @JsonProperty("startTime")
+    var startTime : LocalDateTime? = null,
+
+    @JsonProperty("endTime")
+    var endTime : LocalDateTime? = null
+){
+    override fun toString(): String {
+        return "Student(id=$id, age=$age, name=$name, schoolId=$schoolId, startTime=$startTime, endTime=$endTime)"
+    }
+}
+```
+
+#### 3.2 Repository (第一種寫法)
 ```kotlin
 import com.edu.entities.School
 
@@ -161,7 +202,56 @@ class SchoolRepositoriesImp @Inject constructor(
     }
 }
 ```
-#### 3.3 Services
+#### 3.2 Repository (第二種寫法)
+```kotlin
+package com.edu.repositories
+
+import com.edu.entities.Student
+import com.mongodb.client.MongoClient
+import com.mongodb.client.MongoCollection
+import com.mongodb.client.model.Filters
+import com.mongodb.client.model.Updates
+import org.bson.BsonObjectId
+import org.bson.BsonValue
+import org.bson.Document
+import org.bson.conversions.Bson
+import org.bson.types.ObjectId
+import javax.enterprise.context.ApplicationScoped
+import javax.inject.Inject
+import kotlin.reflect.full.declaredMemberProperties
+
+/**
+@author Yu-Jing
+@create 2023-03-18-下午 06:27
+ */
+@ApplicationScoped
+class StudentRepository @Inject constructor(
+    private  val  mongoClient : MongoClient
+) {
+    private val mongoCollection : MongoCollection<Student> = mongoClient.getDatabase("quarkusEduDB").getCollection("students", Student::class.java)
+
+    fun addStudent(student: Student) =  mongoCollection.insertOne(student).insertedId?.asObjectId()?.value.toString()
+    fun deleteStudent(id : String) = mongoCollection.deleteOne(Filters.eq("_id", ObjectId(id))).deletedCount
+
+    fun updateStudent(student: Student, id: String){
+        val updates = mutableListOf<Bson>()
+        // get all the properties of student, and check which are not null
+        student::class.declaredMemberProperties.forEach { kProperty1 ->
+            val key = kProperty1.name
+            val value = kProperty1.getter.call(student)
+            if (value != null) updates.add(Updates.set(key, value))
+        }
+        mongoCollection.updateOne(Filters.eq("_id", ObjectId(id)), updates)
+    }
+
+    fun findAllStudents() = mongoCollection.find().toList()
+    fun findStudentById(id : String) = mongoCollection.find(Filters.eq("_id", ObjectId(id))).first()?:null
+
+}
+```
+
+
+#### 3.3 Services (第一種寫法)
 ```kotlin
 import com.edu.entities.School
 import com.edu.repositories.SchoolRepositories
@@ -183,7 +273,33 @@ class SchoolServices @Inject constructor(
     fun findSchoolById(id : String) = schoolRepositories.findSchoolById(id)
 }
 ```
-#### 3.4 Controller
+#### 3.3 Services (第二種寫法)
+```kotlin
+package com.edu.services
+
+import com.edu.entities.Student
+import com.edu.repositories.StudentRepository
+import org.bson.BsonValue
+import javax.enterprise.context.ApplicationScoped
+import javax.inject.Inject
+
+/**
+@author Yu-Jing
+@create 2023-03-18-下午 06:32
+ */
+@ApplicationScoped
+class StudentService @Inject constructor(
+    private val studentRepository: StudentRepository
+){
+    fun addStudent(student: Student) =  studentRepository.addStudent(student)
+    fun deleteStudent(id: String) = studentRepository.deleteStudent(id)
+    fun updateStudent(student: Student, id: String) = studentRepository.updateStudent(student, id)
+    fun findStudentById(id: String) = studentRepository.findStudentById(id)
+    fun findAllStudents() = studentRepository.findAllStudents()
+}
+```
+
+#### 3.4 Controller (第一種寫法)
 ```kotlin
 
 import com.edu.entities.School
@@ -234,6 +350,67 @@ class SchoolControllers @Inject constructor(
 }
 ```
 
+#### 3.4 Controller (第二種寫法)
+```kotlin
+package com.edu.controllers
+
+import com.edu.entities.Student
+import com.edu.services.StudentService
+import javax.inject.Inject
+import javax.ws.rs.Consumes
+import javax.ws.rs.DELETE
+import javax.ws.rs.GET
+import javax.ws.rs.PATCH
+import javax.ws.rs.POST
+import javax.ws.rs.Path
+import javax.ws.rs.PathParam
+import javax.ws.rs.Produces
+import javax.ws.rs.core.MediaType
+
+/**
+@author Yu-Jing
+@create 2023-03-18-下午 06:32
+ */
+@Path("/students")
+class StudentController @Inject constructor(
+    private val service: StudentService
+){
+    @POST
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.TEXT_PLAIN)
+    fun addStudent(student: Student) = service.addStudent(student)
+
+    @DELETE
+    @Path("/{id}")
+    @Produces(MediaType.TEXT_PLAIN)
+    fun deleteStudent(@PathParam("id") id : String) = service.deleteStudent(id)
+
+    @PATCH
+    @Path("/{id}")
+    fun updateStudent(student: Student, @PathParam("id") id : String) = service.updateStudent(student, id)
+
+    @GET
+    @Produces(MediaType.APPLICATION_JSON)
+    fun findAllStudents() = service.findAllStudents()
+
+    @GET
+    @Path("/{id}")
+    @Produces(MediaType.APPLICATION_JSON)
+    fun findStudentById(@PathParam("id") id : String) = service.findStudentById(id)
+}
+```
+
+#### 3.5 測試資料寫法
+1. 從 postman 傳送的資料
+```json
+{
+    "age": 213,
+    "name": "惶惶",
+    "school_id": "64094cfc955257c1183699d5",
+    "startTime": "2019-01-21T11:00:00Z",
+    "endTime": "2023-12-01T01:00:00Z"
+}
+```
 #### Reference
 https://www.knowledgefactory.net/2021/10/quarkus-vuejs-mongodb-crud-example.html
 https://medium.com/%E7%A8%8B%E5%BC%8F%E7%8C%BF%E5%90%83%E9%A6%99%E8%95%89/same-origin-policy-%E5%90%8C%E6%BA%90%E6%94%BF%E7%AD%96-%E4%B8%80%E5%88%87%E5%AE%89%E5%85%A8%E7%9A%84%E5%9F%BA%E7%A4%8E-36432565a226
