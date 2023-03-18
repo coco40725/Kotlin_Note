@@ -407,8 +407,8 @@ class StudentController @Inject constructor(
     "age": 213,
     "name": "惶惶",
     "school_id": "64094cfc955257c1183699d5",
-    "startTime": "2019-01-21T11:00:00Z",
-    "endTime": "2023-12-01T01:00:00Z"
+    "startTime": "2019-01-21T11:00:00",
+    "endTime": "2023-12-01T01:00:00"
 }
 ```
 #### Reference
